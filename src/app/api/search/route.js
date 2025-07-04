@@ -1,5 +1,5 @@
 // File: src/app/api/search/route.js
-import playwright from 'playwright-aws-lambda';
+const playwright = require('playwright-aws-lambda'); // Using require() for serverless compatibility
 
 export const config = {
   maxDuration: 60,
