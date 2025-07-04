@@ -42,7 +42,9 @@ export async function GET(request) {
     const walmartUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
 
     try {
-        const response = await fetch(`https://chrome.browserless.io/function?token=${apiKey}`, {
+        // --- THIS IS THE ONLY CHANGE ---
+        // Using the new, correct production URL provided by Browserless
+        const response = await fetch(`https://production-sfo.browserless.io/function?token=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
