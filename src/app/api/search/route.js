@@ -1,33 +1,6 @@
+import * as cheerio from 'cheerio';
+
 export const dynamic = 'force-dynamic';
-
-// This syntax creates an anonymous function and returns it.
-// This should satisfy all the API's syntax requirements.
-const scrapeWalmartCode = `
-    async (context) => {
-        const { page, url } = context;
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('[data-item-id]', { timeout: 20000 });
-
-        const products = await page.evaluate(() => {
-            const results = [];
-            const items = document.querySelectorAll('[data-item-id]');
-            for (let i = 0; i < Math.min(items.length, 10); i++) {
-                const item = items[i];
-                try {
-                    const id = item.getAttribute('data-item-id');
-                    const name = item.querySelector('span[data-automation-id="product-title"]')?.innerText.trim();
-                    const price = parseFloat(item.querySelector('[data-automation-id="product-price"] .f2')?.innerText.replace(/[$,]/g, '').trim());
-                    const productUrl = new URL(item.querySelector('a')?.href, 'https://www.walmart.com').href;
-                    if (id && name && price && productUrl) {
-                        results.push({ id, name, price, productUrl, source: 'Walmart' });
-                    }
-                } catch (e) { /* ignore single item errors */ }
-            }
-            return results;
-        });
-        return products;
-    }
-`;
 
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
@@ -44,16 +17,15 @@ export async function GET(request) {
     const walmartUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
 
     try {
-        const response = await fetch(`https://production-sfo.browserless.io/function?token=${apiKey}`, {
+        // Step 1: Use Browserless to get the raw HTML from the URL
+        const response = await fetch(`https://chrome.browserless.io/scrape?token=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                code: scrapeWalmartCode,
-                context: {
-                    url: walmartUrl,
-                },
+                url: walmartUrl,
+                elements: [{ selector: '[data-item-id]' }], // Wait for this selector to appear
             }),
         });
 
@@ -62,11 +34,35 @@ export async function GET(request) {
             throw new Error(`Browserless API failed with status ${response.status}: ${errorText}`);
         }
 
-        const data = await response.json();
-        return new Response(JSON.stringify(data), { status: 200 });
+        const jsonResponse = await response.json();
+        // The HTML content is in the `data` array for the first selector
+        const html = jsonResponse.data[0].results[0].html;
+
+        // Step 2: Parse the HTML with Cheerio
+        const $ = cheerio.load(html);
+        const products = [];
+
+        $('[data-item-id]').each((index, element) => {
+            if (index >= 10) return; // Limit to 10 items
+
+            try {
+                const id = $(element).attr('data-item-id');
+                const name = $(element).find('span[data-automation-id="product-title"]').text().trim();
+                const price = parseFloat($(element).find('[data-automation-id="product-price"] .f2').text().replace(/[$,]/g, '').trim());
+                const productUrl = new URL($(element).find('a').attr('href'), 'https://www.walmart.com').href;
+
+                if (id && name && price && productUrl) {
+                    products.push({ id, name, price, productUrl, source: 'Walmart' });
+                }
+            } catch (e) {
+                console.error('Error parsing an item:', e);
+            }
+        });
+
+        return new Response(JSON.stringify(products), { status: 200 });
 
     } catch (error) {
-        console.error("Error scraping via Browserless:", error);
+        console.error("Error in scraping process:", error);
         return new Response(JSON.stringify({ error: `Scraping failed: ${error.message}` }), { status: 500 });
     }
 }
