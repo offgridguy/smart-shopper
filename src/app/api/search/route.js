@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 
-// Using a traditional, unambiguous function declaration as a string
+// The only change is adding a name to the function, e.g., "scrape"
 const scrapeWalmartCode = `
-    async function(context) {
+    async function scrape(context) {
         const { page, url } = context;
         await page.goto(url, { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('[data-item-id]', { timeout: 20000 });
