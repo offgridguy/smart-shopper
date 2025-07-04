@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic';
 
-// The only change is adding a name to the function, e.g., "scrape"
+// This syntax creates an anonymous function and returns it.
+// This should satisfy all the API's syntax requirements.
 const scrapeWalmartCode = `
-    async function scrape(context) {
+    async (context) => {
         const { page, url } = context;
         await page.goto(url, { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('[data-item-id]', { timeout: 20000 });
