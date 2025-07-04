@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 
-// --- THIS IS THE ONLY CHANGE ---
-// We wrap our function in `module.exports` for compatibility with the Browserless execution environment.
+// Using a traditional, unambiguous function declaration as a string
 const scrapeWalmartCode = `
-    module.exports = async ({ page, url }) => {
+    async function(context) {
+        const { page, url } = context;
         await page.goto(url, { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('[data-item-id]', { timeout: 20000 });
 
