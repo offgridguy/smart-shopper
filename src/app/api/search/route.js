@@ -23,7 +23,8 @@ export async function GET(request) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                function: async ({ page, context }) => { // Define the function here
+                // This is the key change: use 'function' instead of 'code'
+                function: async ({ page, context }) => {
                     const { url } = context;
                     await page.goto(url, { waitUntil: 'domcontentloaded' });
                     await page.waitForSelector('[data-item-id]', { timeout: 20000 });
