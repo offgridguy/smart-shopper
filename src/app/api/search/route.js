@@ -17,15 +17,16 @@ export async function GET(request) {
     const walmartUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
 
     try {
-        // Step 1: Use Browserless to get the raw HTML from the URL
-        const response = await fetch(`https://chrome.browserless.io/scrape?token=${apiKey}`, {
+        // Step 1: Use the correct /content endpoint to get the raw HTML
+        const response = await fetch(`https://production-sfo.browserless.io/content?token=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 url: walmartUrl,
-                elements: [{ selector: '[data-item-id]' }], // Wait for this selector to appear
+                // We can add options to wait for specific elements if needed
+                waitFor: '[data-item-id]',
             }),
         });
 
@@ -34,9 +35,8 @@ export async function GET(request) {
             throw new Error(`Browserless API failed with status ${response.status}: ${errorText}`);
         }
 
-        const jsonResponse = await response.json();
-        // The HTML content is in the `data` array for the first selector
-        const html = jsonResponse.data[0].results[0].html;
+        // The /content endpoint returns raw HTML, not JSON
+        const html = await response.text();
 
         // Step 2: Parse the HTML with Cheerio
         const $ = cheerio.load(html);
