@@ -4,8 +4,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Settings, Star, Zap, ChevronDown, ChevronUp, MessageSquare, Loader2, ShoppingCart, Info, Link, Sparkles } from 'lucide-react';
 
-// --- UI COMPONENTS ---
-
 const Header = () => (
     <header className="bg-white/80 backdrop-blur-lg shadow-sm sticky top-0 z-20">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
@@ -18,63 +16,18 @@ const Header = () => (
 );
 
 const SearchControls = ({ onSearch, isLoading }) => {
-    const [item, setItem] = useState('running shoes');
+    const [item, setItem] = useState('coffee maker');
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
     
-    const [priorities, setPriorities] = useState([
-        { id: 'price', name: 'Price (Lowest First)', checked: true },
-        { id: 'rating', name: 'Rating (Highest First)', checked: false },
-    ]);
-
     const allSourcesList = useMemo(() => [
-        { id: 'Amazon', name: 'Amazon' }, { id: 'Walmart', name: 'Walmart' }, { id: 'REI', name: 'REI' },
-        { id: 'Zappos', name: 'Zappos' }, { id: 'Best Buy', name: 'Best Buy' },
-        { id: 'Target', name: 'Target' },
+        { id: 'Walmart', name: 'Walmart' },
+        { id: 'Amazon', name: 'Amazon (Blocked)' },
     ], []);
 
-    const [sources, setSources] = useState(() => allSourcesList.map(s => ({...s, checked: ['Walmart', 'Best Buy', 'Target'].includes(s.id) })));
-    const [yoloMode, setYoloMode] = useState(false);
-    
-    const handlePriorityChange = (id) => {
-        setPriorities(priorities.map(p => p.id === id ? { ...p, checked: !p.checked } : p));
-    };
+    const [sources, setSources] = useState(() => allSourcesList.map(s => ({...s, checked: s.id === 'Walmart' })));
 
     const handleSourceChange = (id) => {
         setSources(sources.map(s => s.id === id ? { ...s, checked: !s.checked } : s));
-    };
-    
-    const handleYoloChange = () => {
-        const isYolo = !yoloMode;
-        setYoloMode(isYolo);
-        setSources(sources.map(s => ({...s, checked: isYolo ? true : s.checked})));
-    }
-
-    const handleSuggestSources = () => {
-        // This is a simplified logic for demonstration
-        const sourceCategories = {
-            'electronics': ['Best Buy', 'Walmart', 'Target', 'Amazon'],
-            'sporting_goods': ['REI', 'Walmart', 'Target', 'Amazon'],
-            'default': ['Walmart', 'Target', 'Amazon'],
-        };
-        const keywordToCategory = {
-            'printer': 'electronics', 'laptop': 'electronics', 'tv': 'electronics', 'camera': 'electronics', 'headphones': 'electronics',
-            'shoes': 'sporting_goods', 'tent': 'sporting_goods',
-        };
-        const getCategoryFromQuery = (query) => {
-            const lowerQuery = query.toLowerCase();
-            for (const keyword in keywordToCategory) {
-                if (lowerQuery.includes(keyword)) return keywordToCategory[keyword];
-            }
-            return 'default';
-        };
-        const category = getCategoryFromQuery(item);
-        const suggestedSources = sourceCategories[category];
-        const newSources = allSourcesList.map(source => ({
-            ...source,
-            checked: suggestedSources.includes(source.id)
-        }));
-        setSources(newSources);
-        if (!isAdvancedOpen) setIsAdvancedOpen(true);
     };
 
     const handleSubmit = (e) => {
@@ -111,26 +64,15 @@ const SearchControls = ({ onSearch, isLoading }) => {
                     </button>
                 </div>
                 {isAdvancedOpen && (
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-down">
-                        <div className="md:col-span-2">
-                            <h3 className="font-semibold text-gray-700 mb-3">Which sites to include?</h3>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {sources.map(s => (
-                                    <label key={s.id} className={`flex items-center p-3 rounded-lg border transition-all cursor-pointer ${s.checked ? 'bg-indigo-50 border-indigo-300' : 'bg-white hover:bg-gray-50'}`}>
-                                        <input type="checkbox" checked={s.checked} onChange={() => handleSourceChange(s.id)} className="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300" />
-                                        <span className="ml-3 text-sm font-medium text-gray-700">{s.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                             <h3 className="font-semibold text-gray-700 mb-3">YOLO Mode</h3>
-                             <label className="flex items-center p-3 rounded-lg border transition-all cursor-pointer bg-yellow-50 border-yellow-300 hover:bg-yellow-100">
-                                <Zap className="h-5 w-5 text-yellow-600"/>
-                                <span className="ml-3 text-sm font-medium text-gray-700">Search everywhere!</span>
-                                <input type="checkbox" checked={yoloMode} onChange={handleYoloChange} className="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 ml-auto" />
-                            </label>
-                            <p className="text-xs text-gray-500 mt-2">Let our AI do a broad search across dozens of retailers. May take longer.</p>
+                    <div className="mt-6">
+                        <h3 className="font-semibold text-gray-700 mb-3">Which sites to include?</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                            {sources.map(s => (
+                                <label key={s.id} className={`flex items-center p-3 rounded-lg border transition-all cursor-pointer ${s.checked ? 'bg-indigo-50 border-indigo-300' : 'bg-white hover:bg-gray-50'}`}>
+                                    <input type="checkbox" checked={s.checked} onChange={() => handleSourceChange(s.id)} className="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300" />
+                                    <span className="ml-3 text-sm font-medium text-gray-700">{s.name}</span>
+                                </label>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -214,8 +156,6 @@ const App = () => {
         setError(null);
         
         try {
-            // ** THIS IS THE MAIN CHANGE **
-            // We now send the sources to the backend API
             const sites = params.sources.join(',');
             if (!sites) {
                 setError("Please select at least one source website to search.");

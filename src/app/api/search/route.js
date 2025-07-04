@@ -1,94 +1,87 @@
 // File: src/app/api/search/route.js
-import chromium from '@sparticuz/chromium';
-import puppeteer from 'puppeteer';
+import playwright from 'playwright-aws-lambda';
 
-// This tells Vercel to use a larger serverless function, which is needed for running a browser
 export const config = {
   maxDuration: 60,
 };
 
-// The main handler for the serverless function, now using GET
-export async function GET(request) {
-    // Get the search query from the URL, e.g., /api/search?query=laptops
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('query');
-
-    if (!query) {
-        return new Response(JSON.stringify({ error: 'Search query is required.' }), { status: 400 });
-    }
-
+async function scrapeWalmart(query) {
     let browser = null;
-
     try {
-        // Launch the browser using the new package
-        browser = await puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
-            ignoreHTTPSErrors: true,
-        });
-
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36');
+        console.log(`Launching browser for Walmart...`);
+        browser = await playwright.launchChromium({ headless: true });
+        const context = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36' });
+        const page = await context.newPage();
         
-        // Scrape Amazon Search Results
-        const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(query)}`;
-        await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+        console.log(`Scraping Walmart for: ${query}`);
+        await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(query)}`, { waitUntil: 'domcontentloaded' });
 
-        await page.waitForSelector('.s-main-slot .s-result-item[data-asin]', { timeout: 15000 });
+        await page.waitForSelector('[data-item-id]', { timeout: 20000 });
 
-        // Extract Product Data from the Page
         const products = await page.evaluate(() => {
             const results = [];
-            const items = document.querySelectorAll('.s-main-slot .s-result-item[data-asin]');
-            
+            const items = document.querySelectorAll('[data-item-id]');
             for (let i = 0; i < Math.min(items.length, 10); i++) {
                 const item = items[i];
-                const asin = item.getAttribute('data-asin');
-                if (!asin) continue;
+                try {
+                    const id = item.getAttribute('data-item-id');
+                    const nameElement = item.querySelector('span[data-automation-id="product-title"]');
+                    const priceElement = item.querySelector('[data-automation-id="product-price"] .f2');
+                    const linkElement = item.querySelector('a');
 
-                const nameElement = item.querySelector('h2 a span');
-                const priceWholeElement = item.querySelector('.a-price-whole');
-                const priceFractionElement = item.querySelector('.a-price-fraction');
-                const ratingElement = item.querySelector('.a-icon-alt');
-                const reviewsElement = item.querySelector('span.a-size-base');
-                const linkElement = item.querySelector('h2 a');
+                    if (nameElement && priceElement && linkElement) {
+                        const name = nameElement.innerText.trim();
+                        const priceText = priceElement.innerText.replace(/[$,]/g, '').trim();
+                        const price = parseFloat(priceText);
+                        const productUrl = new URL(linkElement.href, 'https://www.walmart.com').href;
 
-                const name = nameElement ? nameElement.innerText : null;
-                const priceWhole = priceWholeElement ? priceWholeElement.innerText.replace(/[\n,]/g, '') : null;
-                const priceFraction = priceFractionElement ? priceFractionElement.innerText.replace(/[\n,]/g, '') : null;
-                const ratingText = ratingElement ? ratingElement.innerText : null;
-                const reviewsText = reviewsElement ? reviewsElement.innerText.replace(/,/g, '') : null;
-                
-                const productUrl = linkElement ? `https://www.amazon.com${linkElement.getAttribute('href')}` : null;
-
-                if (name && priceWhole && priceFraction && productUrl) {
-                    const ratingMatch = ratingText ? ratingText.match(/^[0-9.]+/)?.[0] : null;
-                    const reviewsMatch = reviewsText ? reviewsText.match(/^[0-9,]+/)?.[0].replace(/,/g, '') : null;
-
-                    results.push({
-                        id: asin,
-                        name: name,
-                        price: parseFloat(`${priceWhole}.${priceFraction}`),
-                        rating: ratingMatch ? parseFloat(ratingMatch) : 'N/A',
-                        reviews: reviewsMatch ? parseInt(reviewsMatch) : 0,
-                        source: 'Amazon',
-                        productUrl: productUrl
-                    });
-                }
+                        if (name && price && productUrl) {
+                            results.push({ id, name, price, source: 'Walmart', productUrl });
+                        }
+                    }
+                } catch (e) { console.log('Could not parse a Walmart item:', e); }
             }
             return results;
         });
-
-        return new Response(JSON.stringify(products), { status: 200 });
-
-    } catch (error) {
-        console.error(error);
-        return new Response(JSON.stringify({ error: 'Failed to scrape the website. It might be down, have changed its layout, or blocked the request.' }), { status: 500 });
+        
+        console.log(`Found ${products.length} products on Walmart.`);
+        return products;
     } finally {
-        if (browser !== null) {
+        if (browser) {
             await browser.close();
         }
+    }
+}
+
+const scraperFunctions = {
+    'Walmart': scrapeWalmart,
+};
+
+export async function GET(request) {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('query');
+    const sources = searchParams.get('sources')?.split(',') || [];
+
+    if (!query || sources.length === 0) {
+        return new Response(JSON.stringify({ error: 'Search query and sources are required.' }), { status: 400 });
+    }
+
+    try {
+        let allProducts = [];
+        for (const source of sources) {
+            const scraper = scraperFunctions[source];
+            if (scraper) {
+                try {
+                    const results = await scraper(query);
+                    allProducts = allProducts.concat(results);
+                } catch (error) {
+                    console.error(`Failed to scrape ${source}:`, error.message);
+                }
+            }
+        }
+        return new Response(JSON.stringify(allProducts), { status: 200 });
+    } catch (error) {
+        console.error("A critical error occurred:", error);
+        return new Response(JSON.stringify({ error: error.message || 'An unknown error occurred during scraping.' }), { status: 500 });
     }
 }
