@@ -1,8 +1,9 @@
 export const dynamic = 'force-dynamic';
 
-// This is the JavaScript code that will be executed in the remote browser
+// --- THIS IS THE ONLY CHANGE ---
+// We wrap our function in `module.exports` for compatibility with the Browserless execution environment.
 const scrapeWalmartCode = `
-    async ({ page, url }) => {
+    module.exports = async ({ page, url }) => {
         await page.goto(url, { waitUntil: 'domcontentloaded' });
         await page.waitForSelector('[data-item-id]', { timeout: 20000 });
 
@@ -42,8 +43,6 @@ export async function GET(request) {
     const walmartUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
 
     try {
-        // --- THIS IS THE ONLY CHANGE ---
-        // Using the new, correct production URL provided by Browserless
         const response = await fetch(`https://production-sfo.browserless.io/function?token=${apiKey}`, {
             method: 'POST',
             headers: {
